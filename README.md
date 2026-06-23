@@ -35,7 +35,8 @@
 
 ---
 
-![Uploading n8n outbound call Flow.png…]()
+<img width="1690" height="480" alt="n8n outbound call Flow" src="https://github.com/user-attachments/assets/5a6fa693-ba80-4472-941f-2e268ae4eceb" />
+
 
 
 ## 🔁 How It Works
