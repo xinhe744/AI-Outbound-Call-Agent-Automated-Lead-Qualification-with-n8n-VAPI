@@ -1,0 +1,355 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Work With Us",
+        "formDescription": "Fill out the form and we will reach out ASAP",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "placeholder": "Cheng Xinhe",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Phone Number",
+              "placeholder": "+2347043036805",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "E-mail",
+              "placeholder": "cheng@gmail.com",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Company Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Role",
+              "placeholder": "CEO",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Request",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Company Size",
+              "placeholder": "2-30",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [0, 0],
+      "id": "cb7e31d1-c67f-4d11-9409-c1e42fb97787",
+      "name": "On form submission",
+      "webhookId": "YOUR_FORM_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  let phone = item.json['Phone Number'] || '';\n\n  // Remove everything except digits and leading +\n  phone = phone.replace(/[^\\d+]/g, '');\n\n  let standardized = '';\n\n  if (phone.startsWith('+')) {\n    const digits = phone.slice(1); // Remove the +\n\n    if (!digits.startsWith('234')) {\n      standardized = 'incorrect format'; // Wrong country code\n    } else if (digits.length !== 13) {\n      standardized = 'incorrect format'; // Too many or too few digits\n    } else {\n      standardized = '+' + digits; // Already correct\n    }\n\n  } else if (phone.startsWith('234')) {\n    // Missing + but has country code\n    if (phone.length !== 13) {\n      standardized = 'incorrect format';\n    } else {\n      standardized = '+' + phone; // Add the +\n    }\n\n  } else if (phone.startsWith('0')) {\n    // Local Nigerian format e.g. 08043630807\n    const localNumber = phone.slice(1); // Remove leading 0\n    if (localNumber.length !== 10) {\n      standardized = 'incorrect format';\n    } else {\n      standardized = '+234' + localNumber; // Convert to international\n    }\n\n  } else {\n    standardized = 'incorrect format';\n  }\n\n  return {\n    json: {\n      ...item.json,\n      'Phone Number': standardized\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [208, 0],
+      "id": "2abe3356-e00b-460d-bf52-ddb4377cfc43",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "58731bf5-afe2-4ea2-8240-1b3cad0c0ccf",
+              "leftValue": "={{ $json[\"Phone Number\"] }}",
+              "rightValue": "Incorrect format",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [416, 0],
+      "id": "4955f14c-7f41-4f1d-bedb-06d2711a7d6f",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "title": "Log incorrect phone number",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [624, -192],
+      "id": "38238351-e6c4-47cf-901b-ef1b722a928e",
+      "name": "Create spreadsheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"assistantId\": \"YOUR_VAPI_ASSISTANT_ID\",\n  \"phoneNumberId\": \"YOUR_VAPI_PHONE_NUMBER_ID\",\n  \"customers\": [\n    {\n      \"number\": \"{{ $json['Phone Number'] }}\"\n    }\n  ],\n  \"assistantOverrides\": {\n    \"variableValues\": {\n      \"lead_name\": \"{{ $json.Name }}\",\n      \"lead_company_name\": \"{{ $json['Company Name'] }}\",\n      \"lead_request\": \"{{ $json.Request }}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [608, 208],
+      "id": "ecfe522b-2fa4-4b8f-8980-46e3fedbcbe5",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "YOUR_VAPI_CREDENTIAL_ID",
+          "name": "vapi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [800, -16],
+      "id": "4708f7a6-b18d-4c96-af44-46df28ae6939",
+      "name": "Wait",
+      "webhookId": "YOUR_WAIT_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "url": "https://api.vapi.ai/call/:id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1008, -16],
+      "id": "93252df9-2587-4e2c-b522-104fe3d07061",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "YOUR_VAPI_CREDENTIAL_ID",
+          "name": "vapi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "maxItems": 2
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [1184, -16],
+      "id": "d93e4bf3-5355-43ae-93ad-95e8268e1d35",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ee5bd27b-2cb7-48b6-88a7-594c9dc78ae2",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1392, -16],
+      "id": "64723c1f-0027-4f6b-be8d-4cb90133c2f5",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "691098e7-970c-40df-b608-da936241775c",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1600, -112],
+      "id": "2c275c96-e858-4c82-99b3-cd70ce39034c",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "title": "Log voice mail",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1808, -208],
+      "id": "16c37e3d-c3cc-4271-ae19-09959029ba99",
+      "name": "Create spreadsheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "title": "Log Complete",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1808, -16],
+      "id": "845f4ee6-45f6-41e1-938a-b57141b7c717",
+      "name": "Create spreadsheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1600, 80],
+      "id": "492e157c-aa4e-46a6-8534-bc056dfeee14",
+      "name": "Wait1",
+      "webhookId": "YOUR_WAIT1_WEBHOOK_ID"
+    }
+  ],
+  "pinData": {
+    "On form submission": [
+      {
+        "json": {
+          "Name": "Example Name",
+          "Phone Number": "+2348000000000",
+          "E-mail": "example@email.com",
+          "Company Name": "Example Company",
+          "Role": "CEO",
+          "Request": "AI Automation for my company",
+          "Company Size": "2-30",
+          "submittedAt": "2026-01-01T00:00:00.000Z",
+          "formMode": "test"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "On form submission": {
+      "main": [[{ "node": "Code in JavaScript", "type": "main", "index": 0 }]]
+    },
+    "Code in JavaScript": {
+      "main": [[{ "node": "If", "type": "main", "index": 0 }]]
+    },
+    "If": {
+      "main": [
+        [{ "node": "Create spreadsheet", "type": "main", "index": 0 }],
+        [{ "node": "HTTP Request", "type": "main", "index": 0 }]
+      ]
+    },
+    "HTTP Request": {
+      "main": [[{ "node": "Wait", "type": "main", "index": 0 }]]
+    },
+    "Wait": {
+      "main": [[{ "node": "HTTP Request1", "type": "main", "index": 0 }]]
+    },
+    "HTTP Request1": {
+      "main": [[{ "node": "Limit", "type": "main", "index": 0 }]]
+    },
+    "Limit": {
+      "main": [[{ "node": "If1", "type": "main", "index": 0 }]]
+    },
+    "If1": {
+      "main": [
+        [{ "node": "If2", "type": "main", "index": 0 }],
+        [{ "node": "Wait1", "type": "main", "index": 0 }]
+      ]
+    },
+    "If2": {
+      "main": [
+        [{ "node": "Create spreadsheet1", "type": "main", "index": 0 }],
+        [{ "node": "Create spreadsheet2", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "YOUR_VERSION_ID",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "nodeGroups": [],
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}
